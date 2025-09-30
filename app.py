@@ -149,6 +149,4 @@ if 'items' in st.session_state and st.session_state['items']:
             csv_bytes = final_df.to_csv(index=False).encode('utf-8')
             st.download_button("Download Shortlist CSV", csv_bytes, file_name="whi_shortlist.csv")
 
-            mapping_df = pd.DataFrame([{"original_query": cat.strip(), "suggested_normalized": suggested_normalized}])
-            st.download_button("Download mapping CSV", mapping_df.to_csv(index=False).encode('utf-8'),
-                               file_name="whi_suggested_mapping.csv")
+     
