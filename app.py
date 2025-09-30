@@ -3,30 +3,24 @@ import pandas as pd
 from googleapiclient.discovery import build
 import tldextract
 import re
+import os
 
 st.set_page_config(page_title="COMPEER'S AI", layout="centered")
 st.title("COMPEER'S AI")
 
-# --- NOTE ---
-# For now keep these blank or put your keys directly (you said you will handle secrets later).
-import os
-
+# --- API Keys ---
 API_KEY = os.getenv("GOOGLE_API_KEY")
 CSE_ID = os.getenv("CSE_ID")
 
-
-
-cat = st.text_input("Category / Topic")
-hint = st.text_input("Hints (comma-separated, optional)")
-num_results = st.slider("Number of search results", min_value=5, max_value=20, value=10)
+# Fixed default number of search results
+DEFAULT_NUM_RESULTS = 10
 
 def google_search_raw(q, api_key, cse_id, num=10):
-    # returns list of result items from Google Custom Search
     service = build("customsearch", "v1", developerKey=api_key)
     resp = service.cse().list(q=q, cx=cse_id, num=num).execute()
     return resp.get("items", [])
 
-PAYWALLED = {"nytimes.com","wsj.com","ft.com","economist.com"}
+PAYWALLED = {"nytimes.com", "wsj.com", "ft.com", "economist.com"}
 
 def infer_publisher_and_type(url, title, snippet):
     ext = tldextract.extract(url)
@@ -35,18 +29,17 @@ def infer_publisher_and_type(url, title, snippet):
     low = (domain or "").lower()
     src_type = "Other"
 
-    if any(x in low for x in ("amazon","flipkart","walmart","alibaba","etsy")):
+    if any(x in low for x in ("amazon", "flipkart", "walmart", "alibaba", "etsy")):
         src_type = "E-commerce"
-    elif any(x in low for x in ("wikipedia","edu")):
+    elif any(x in low for x in ("wikipedia", "edu")):
         src_type = "Academic"
-    elif any(x in low for x in ("medium","blogspot","wordpress","substack","blog")):
+    elif any(x in low for x in ("medium", "blogspot", "wordpress", "substack", "blog")):
         src_type = "Blog"
-    elif any(x in low for x in ("news","nytimes","guardian","reuters","bbc","thehindu","economictimes")):
+    elif any(x in low for x in ("news", "nytimes", "guardian", "reuters", "bbc", "thehindu", "economictimes")):
         src_type = "News"
-    elif any(x in low for x in ("gov","who.int","un.org")):
+    elif any(x in low for x in ("gov", "who.int", "un.org")):
         src_type = "Official"
     else:
-        # fallbacks using title/snippet heuristics
         combined = (title or "") + " " + (snippet or "")
         if re.search(r"\b(review|buy|price|shop|discount|sale)\b", combined, re.I):
             src_type = "E-commerce"
@@ -65,8 +58,10 @@ def extract_year(text):
 st.markdown("---")
 st.write("Note: If you haven't added API_KEY and CSE_ID (Google Custom Search), the search feature will fail. You can still deploy first and add keys later.")
 
+cat = st.text_input("Category / Topic")
+hint = st.text_input("Hints (comma-separated, optional)")
+
 if st.button("Run auto-discovery"):
-    # basic validation
     if not API_KEY or not CSE_ID:
         st.error("API_KEY or CSE_ID not set. Add your keys to API_KEY and CSE_ID variables in app.py (or use st.secrets later).")
     elif not cat.strip():
@@ -77,7 +72,7 @@ if st.button("Run auto-discovery"):
             query += " " + " ".join([h.strip() for h in hint.split(",") if h.strip()])
 
         try:
-            items = google_search_raw(query, API_KEY, CSE_ID, num=num_results)
+            items = google_search_raw(query, API_KEY, CSE_ID, num=DEFAULT_NUM_RESULTS)
         except Exception as e:
             st.error(f"Search failed: {e}")
             items = []
