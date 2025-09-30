@@ -7,14 +7,18 @@ import re
 st.set_page_config(page_title="COMPEER'S AI", layout="centered")
 st.title("COMPEER'S AI")
 
-API_KEY = "AIzaSyAQwqw4urV935hjNLQYrYLF42zJJijJLEw"
-CSE_ID = "b4f5bdce37c7c4e2f"
+# --- NOTE ---
+# For now keep these blank or put your keys directly (you said you will handle secrets later).
+# After deploy you can replace these with real values or use st.secrets later.
+API_KEY = "AIzaSyAQwqw4urV935hjNLQYrYLF42zJJijJLEw"   # <-- put your Google API key here later
+CSE_ID = "b4f5bdce37c7c4e2f"    # <-- put your Custom Search Engine ID here later
 
 cat = st.text_input("Category / Topic")
 hint = st.text_input("Hints (comma-separated, optional)")
 num_results = st.slider("Number of search results", min_value=5, max_value=20, value=10)
 
 def google_search_raw(q, api_key, cse_id, num=10):
+    # returns list of result items from Google Custom Search
     service = build("customsearch", "v1", developerKey=api_key)
     resp = service.cse().list(q=q, cx=cse_id, num=num).execute()
     return resp.get("items", [])
@@ -25,45 +29,50 @@ def infer_publisher_and_type(url, title, snippet):
     ext = tldextract.extract(url)
     domain = ".".join(part for part in (ext.domain, ext.suffix) if part)
     publisher = domain if domain else url
-    low = domain.lower()
+    low = (domain or "").lower()
     src_type = "Other"
+
     if any(x in low for x in ("amazon","flipkart","walmart","alibaba","etsy")):
         src_type = "E-commerce"
-    elif any(x in low for x in ("wikipedia","edu", ".edu")):
+    elif any(x in low for x in ("wikipedia","edu")):
         src_type = "Academic"
     elif any(x in low for x in ("medium","blogspot","wordpress","substack","blog")):
         src_type = "Blog"
-    elif any(x in low for x in ("news","nytimes","guardian","reuters","bbc","cnn","thehindu","economictimes")):
+    elif any(x in low for x in ("news","nytimes","guardian","reuters","bbc","thehindu","economictimes")):
         src_type = "News"
     elif any(x in low for x in ("gov","who.int","un.org")):
         src_type = "Official"
     else:
-        if re.search(r"\b(review|buy|price|shop|discount|sale)\b", (title + " " + snippet), re.I):
+        # fallbacks using title/snippet heuristics
+        combined = (title or "") + " " + (snippet or "")
+        if re.search(r"\b(review|buy|price|shop|discount|sale)\b", combined, re.I):
             src_type = "E-commerce"
-        elif re.search(r"\b(study|journal|research|doi|pdf)\b", (title + " " + snippet), re.I):
+        elif re.search(r"\b(study|journal|research|doi|pdf)\b", combined, re.I):
             src_type = "Academic"
         else:
             src_type = "Vendor/Other"
+
     access = "Paywalled" if domain in PAYWALLED else "Free"
     return publisher, src_type, access
 
 def extract_year(text):
-    years = re.findall(r"(19|20)\d{2}", text)
-    if years:
-        match = re.search(r"((19|20)\d{2})", text)
-        if match:
-            return match.group(1)
-    return ""
+    match = re.search(r"(19|20)\d{2}", text)
+    return match.group(0) if match else ""
+
+st.markdown("---")
+st.write("Note: If you haven't added API_KEY and CSE_ID (Google Custom Search), the search feature will fail. You can still deploy first and add keys later.")
 
 if st.button("Run auto-discovery"):
+    # basic validation
     if not API_KEY or not CSE_ID:
-        st.error("Set API_KEY and CSE_ID in the app.")
+        st.error("API_KEY or CSE_ID not set. Add your keys to API_KEY and CSE_ID variables in app.py (or use st.secrets later).")
     elif not cat.strip():
         st.warning("Enter a category/topic.")
     else:
         query = cat.strip()
         if hint.strip():
             query += " " + " ".join([h.strip() for h in hint.split(",") if h.strip()])
+
         try:
             items = google_search_raw(query, API_KEY, CSE_ID, num=num_results)
         except Exception as e:
@@ -97,6 +106,7 @@ if st.button("Run auto-discovery"):
             st.dataframe(short_df.drop(columns=["select"]).reset_index(drop=True))
 
             approved = []
+            st.markdown("### Select sources you want to approve")
             for i, r in short_df.iterrows():
                 key = f"sel_{i}"
                 checked = st.checkbox(f"[{r['source_type']}] {r['title']} — {r['publisher']}", key=key)
