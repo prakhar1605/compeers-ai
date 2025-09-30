@@ -9,9 +9,11 @@ st.title("COMPEER'S AI")
 
 # --- NOTE ---
 # For now keep these blank or put your keys directly (you said you will handle secrets later).
-# After deploy you can replace these with real values or use st.secrets later.
-API_KEY = "AIzaSyAQwqw4urV935hjNLQYrYLF42zJJijJLEw"   # <-- put your Google API key here later
-CSE_ID = "b4f5bdce37c7c4e2f"   
+import os
+
+API_KEY = os.getenv("GOOGLE_API_KEY")
+CSE_ID = os.getenv("CSE_ID")
+
 
 
 cat = st.text_input("Category / Topic")
