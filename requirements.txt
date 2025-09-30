@@ -2,4 +2,3 @@ streamlit==1.24.1
 pandas
 google-api-python-client
 tldextract
-Pillow==9.5.0
