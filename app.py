@@ -19,7 +19,7 @@ CSE_ID = os.getenv("CSE_ID")
 # ----------------------
 cat = st.text_input("Category / Topic")
 hint = st.text_input("Hints (comma-separated, optional)")
-num_results = st.slider("Number of search results", min_value=5, max_value=20, value=10)
+num_results = st.slider("Number of search results", min_value=5, max_value=10, value=10)
 
 st.markdown("---")
 st.write("Note: Add API_KEY and CSE_ID in environment variables for search to work.")
