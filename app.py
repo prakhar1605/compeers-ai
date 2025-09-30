@@ -11,7 +11,8 @@ st.title("COMPEER'S AI")
 # For now keep these blank or put your keys directly (you said you will handle secrets later).
 # After deploy you can replace these with real values or use st.secrets later.
 API_KEY = "AIzaSyAQwqw4urV935hjNLQYrYLF42zJJijJLEw"   # <-- put your Google API key here later
-CSE_ID = "b4f5bdce37c7c4e2f"    # <-- put your Custom Search Engine ID here later
+CSE_ID = "b4f5bdce37c7c4e2f"   
+
 
 cat = st.text_input("Category / Topic")
 hint = st.text_input("Hints (comma-separated, optional)")
