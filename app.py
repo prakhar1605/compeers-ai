@@ -5,16 +5,28 @@ import tldextract
 import re
 import os
 
+# ----------------------
+# CONFIGURATION
+# ----------------------
 st.set_page_config(page_title="COMPEER'S AI", layout="centered")
 st.title("COMPEER'S AI")
 
-# --- API Keys ---
 API_KEY = os.getenv("GOOGLE_API_KEY")
 CSE_ID = os.getenv("CSE_ID")
 
-# Fixed default number of search results
-DEFAULT_NUM_RESULTS = 10
+# ----------------------
+# USER INPUTS
+# ----------------------
+cat = st.text_input("Category / Topic")
+hint = st.text_input("Hints (comma-separated, optional)")
+num_results = st.slider("Number of search results", min_value=5, max_value=20, value=10)
 
+st.markdown("---")
+st.write("Note: Add API_KEY and CSE_ID in environment variables for search to work.")
+
+# ----------------------
+# HELPER FUNCTIONS
+# ----------------------
 def google_search_raw(q, api_key, cse_id, num=10):
     service = build("customsearch", "v1", developerKey=api_key)
     resp = service.cse().list(q=q, cx=cse_id, num=num).execute()
@@ -55,15 +67,12 @@ def extract_year(text):
     match = re.search(r"(19|20)\d{2}", text)
     return match.group(0) if match else ""
 
-st.markdown("---")
-st.write("Note: If you haven't added API_KEY and CSE_ID (Google Custom Search), the search feature will fail. You can still deploy first and add keys later.")
-
-cat = st.text_input("Category / Topic")
-hint = st.text_input("Hints (comma-separated, optional)")
-
+# ----------------------
+# RUN SEARCH
+# ----------------------
 if st.button("Run auto-discovery"):
     if not API_KEY or not CSE_ID:
-        st.error("API_KEY or CSE_ID not set. Add your keys to API_KEY and CSE_ID variables in app.py (or use st.secrets later).")
+        st.error("API_KEY or CSE_ID not set.")
     elif not cat.strip():
         st.warning("Enter a category/topic.")
     else:
@@ -72,68 +81,74 @@ if st.button("Run auto-discovery"):
             query += " " + " ".join([h.strip() for h in hint.split(",") if h.strip()])
 
         try:
-            items = google_search_raw(query, API_KEY, CSE_ID, num=DEFAULT_NUM_RESULTS)
+            items = google_search_raw(query, API_KEY, CSE_ID, num=num_results)
+            st.session_state['items'] = items  # Save results
         except Exception as e:
             st.error(f"Search failed: {e}")
-            items = []
+            st.session_state['items'] = []
 
-        if not items:
-            st.warning("No search results.")
+# ----------------------
+# DISPLAY RESULTS
+# ----------------------
+if 'items' in st.session_state and st.session_state['items']:
+    items = st.session_state['items']
+    rows = []
+    for it in items:
+        title = it.get("title", "")
+        link = it.get("link", "")
+        snippet = it.get("snippet", "")
+        publisher, src_type, access = infer_publisher_and_type(link, title, snippet)
+        coverage = extract_year(title + " " + snippet) or ""
+        relevance_note = (snippet[:200] + "...") if snippet and len(snippet) > 200 else (snippet or "")
+        rows.append({
+            "source_type": src_type,
+            "title": title,
+            "publisher": publisher,
+            "coverage_period": coverage,
+            "access_type": access,
+            "url": link,
+            "relevance_note": relevance_note
+        })
+
+    short_df = pd.DataFrame(rows)
+    st.subheader("Auto-discovered shortlist")
+    st.dataframe(short_df.reset_index(drop=True))
+
+    approved = []
+    st.markdown("### Select sources you want to approve")
+    for i, r in short_df.iterrows():
+        key = f"sel_{i}"
+        checked = st.checkbox(f"[{r['source_type']}] {r['title']} — {r['publisher']}", key=key)
+        if checked:
+            approved.append(r)
+
+    if st.button("Finalize shortlist"):
+        if not approved:
+            st.warning("Select at least one item.")
         else:
-            rows = []
-            for it in items:
-                title = it.get("title", "")
-                link = it.get("link", "")
-                snippet = it.get("snippet", "")
-                publisher, src_type, access = infer_publisher_and_type(link, title, snippet)
-                coverage = extract_year(title + " " + snippet) or ""
-                relevance_note = (snippet[:200] + "...") if snippet and len(snippet) > 200 else (snippet or "")
-                rows.append({
-                    "select": False,
-                    "source_type": src_type,
-                    "title": title,
-                    "publisher": publisher,
-                    "coverage_period": coverage,
-                    "access_type": access,
-                    "url": link,
-                    "relevance_note": relevance_note
-                })
+            final_df = pd.DataFrame(approved)
+            st.session_state['final_df'] = final_df
 
-            short_df = pd.DataFrame(rows)
-            st.subheader("Auto-discovered shortlist")
-            st.dataframe(short_df.drop(columns=["select"]).reset_index(drop=True))
+            candidate_phrases = []
+            for txt in (final_df['title'].astype(str) + " " + final_df['relevance_note'].astype(str)):
+                tokens = re.findall(r"\b[A-Za-z]{4,}\b", txt)
+                candidate_phrases.extend([t.lower() for t in tokens])
+            freq = pd.Series(candidate_phrases).value_counts()
+            suggestions = list(freq.head(8).index) if not freq.empty else []
+            suggested_normalized = f"{suggestions[0].title()}" if suggestions else cat.strip().title()
+            if len(suggestions) > 1:
+                suggested_normalized += f" > {suggestions[1].title()}"
 
-            approved = []
-            st.markdown("### Select sources you want to approve")
-            for i, r in short_df.iterrows():
-                key = f"sel_{i}"
-                checked = st.checkbox(f"[{r['source_type']}] {r['title']} — {r['publisher']}", key=key)
-                if checked:
-                    approved.append(r)
+            st.success("Final shortlist ready ✅")
+            st.subheader("Final Shortlist")
+            st.dataframe(final_df.reset_index(drop=True))
 
-            if st.button("Finalize shortlist"):
-                if not approved:
-                    st.warning("Select at least one item.")
-                else:
-                    final_df = pd.DataFrame(approved)
-                    candidate_phrases = []
-                    for txt in (final_df['title'].astype(str) + " " + final_df['relevance_note'].astype(str)):
-                        tokens = re.findall(r"\b[A-Za-z]{4,}\b", txt)
-                        candidate_phrases.extend([t.lower() for t in tokens])
-                    freq = pd.Series(candidate_phrases).value_counts()
-                    suggestions = list(freq.head(8).index) if not freq.empty else []
-                    suggested_normalized = f"{suggestions[0].title()}" if suggestions else cat.strip().title()
-                    if len(suggestions) > 1:
-                        suggested_normalized += f" > {suggestions[1].title()}"
+            st.markdown("#### Suggested normalized category")
+            st.info(suggested_normalized)
 
-                    st.success("Final shortlist ready ✅")
-                    st.subheader("Final Shortlist")
-                    st.dataframe(final_df.reset_index(drop=True))
-                    st.markdown("#### Suggested normalized category")
-                    st.info(suggested_normalized)
+            csv_bytes = final_df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Shortlist CSV", csv_bytes, file_name="whi_shortlist.csv")
 
-                    csv_bytes = final_df.to_csv(index=False).encode('utf-8')
-                    st.download_button("Download Shortlist CSV", csv_bytes, file_name="whi_shortlist.csv")
-                    mapping_df = pd.DataFrame([{"original_query": cat.strip(), "suggested_normalized": suggested_normalized}])
-                    st.download_button("Download mapping CSV", mapping_df.to_csv(index=False).encode('utf-8'),
-                                       file_name="whi_suggested_mapping.csv")
+            mapping_df = pd.DataFrame([{"original_query": cat.strip(), "suggested_normalized": suggested_normalized}])
+            st.download_button("Download mapping CSV", mapping_df.to_csv(index=False).encode('utf-8'),
+                               file_name="whi_suggested_mapping.csv")
