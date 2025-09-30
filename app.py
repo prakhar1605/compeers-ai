@@ -7,8 +7,8 @@ import re
 st.set_page_config(page_title="COMPEER'S AI", layout="centered")
 st.title("COMPEER'S AI")
 
-API_KEY = "YOUR_API_KEY"  # <-- Replace this later in secrets.toml
-CSE_ID = "YOUR_CSE_ID"    # <-- Replace this later in secrets.toml
+API_KEY = "AIzaSyAQwqw4urV935hjNLQYrYLF42zJJijJLEw"
+CSE_ID = "b4f5bdce37c7c4e2f"
 
 cat = st.text_input("Category / Topic")
 hint = st.text_input("Hints (comma-separated, optional)")
@@ -33,7 +33,7 @@ def infer_publisher_and_type(url, title, snippet):
         src_type = "Academic"
     elif any(x in low for x in ("medium","blogspot","wordpress","substack","blog")):
         src_type = "Blog"
-    elif any(x in low for x in ("news","nytimes","guardian","reuters","bbc","thehindu","economictimes")):
+    elif any(x in low for x in ("news","nytimes","guardian","reuters","bbc","cnn","thehindu","economictimes")):
         src_type = "News"
     elif any(x in low for x in ("gov","who.int","un.org")):
         src_type = "Official"
